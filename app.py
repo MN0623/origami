@@ -135,7 +135,7 @@ else:
     total_steps = len(STEPS)
 
     st.subheader(f"Step {step_num} / {total_steps}")
-    st.info(f"**instructions** {instruction}")
+    st.info(f"**instructions : ** {instruction}")
 
     col1, col2 = st.columns([1, 1])
 
