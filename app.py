@@ -119,12 +119,40 @@ step_num = tutor.get_current_step_number()
 
 # Step 5 に到達した場合（完成）
 if step_num == 5:
-    st.balloons()
-    st.success("🎉finished！")
+    st.balloons()  # 紙吹雪・風船演出
+    st.success("🎉 finished！")
 
-    if st.button("Restart", use_container_width=True):
-        st.session_state.tutor = OrigamiTutor(STEPS)
-        st.rerun()
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        # Step 5 のお手本画像を表示
+        current_step_data = tutor.get_current_step()
+        image_path = current_step_data.get("image")
+        if image_path:
+            st.image(
+                image_path,
+                caption="🎉 example (Step 5)",
+                use_container_width=True,
+            )
+        else:
+            st.info("No image")
+
+    with col2:
+        st.write("### Good job！")
+        st.write("How was it？")
+        st.divider()
+
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button("Back(STEP4)", use_container_width=True):
+                tutor.current_step = 3  # Step 4 (インデックス 3) に戻す
+                tutor.finished = False
+                st.rerun()
+
+        with btn_col2:
+            if st.button("Restart ", use_container_width=True):
+                st.session_state.tutor = OrigamiTutor(STEPS)
+                st.rerun()
 else:
     # 500ミリ秒（0.5秒）ごとにメインスレッドの状態をミリ秒単位で確認
     st_autorefresh(interval=500, key="origami_step_checker")
