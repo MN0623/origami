@@ -49,7 +49,7 @@ class OrigamiProcessor(VideoProcessorBase):
         # 1. demo.py による判定（元の処理をそのまま呼び出し）
         # -------------------------------------------------
         try:
-            self.is_ok = demo.check_origami(img, self.step_num)
+            self.is_ok = demo.check_Origami(img, self.step_num)
         except Exception:
             self.is_ok = False
 
