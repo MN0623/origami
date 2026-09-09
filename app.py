@@ -6,7 +6,7 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
 import av
 import mediapipe as mp
 
-from origami_tutor import STEPS, OrigamiTutor
+from tu import STEPS, OrigamiTutor
 import demo
 
 st.set_page_config(page_title="折り紙チューター：ハート", layout="wide")
