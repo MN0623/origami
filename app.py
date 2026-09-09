@@ -162,15 +162,28 @@ else:
     # 右カラム: 手動コントロール
     # ---------------------------------------------------------
     with col2:
-        st.write("### 手動コントロール")
+        # STEPS の "image" キーから画像パスを取得
+        image_path = current_step_data.get("image")
+        
+        if image_path:
+            # 画像を表示（ファイルが存在しない場合エラーにならないよう表示）
+            st.image(image_path, caption=f"Step {step_num} のお手本", use_container_width=True)
+        else:
+            st.info("※ このステップの解説画像はありません。")
 
-        if st.button("強制的に次のステップへ"):
-            tutor.next_step()
-            st.rerun()
+        st.divider()
 
-        if st.button("前のステップに戻る"):
-            if tutor.current_step > 0:
-                tutor.current_step -= 1
-                tutor.finished = False
-                st.rerun()
-                
+        btn_col1, btn_col2 = st.columns(2)
+        
+                with btn_col1:
+                    if st.button("前のステップに戻る", use_container_width=True):
+                        if tutor.current_step > 0:
+                            tutor.current_step -= 1
+                            tutor.finished = False
+                            st.rerun()
+        
+                with btn_col2:
+                    if st.button("強制的に次のステップへ", use_container_width=True):
+                        tutor.next_step()
+                        st.rerun()
+                        
