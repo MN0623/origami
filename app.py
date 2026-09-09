@@ -139,7 +139,7 @@ if step_num == 5:
 
     with col2:
         st.write("### Good job！")
-        st.write("Did you enjoy it？")
+#        st.write("Did you enjoy it？")
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
