@@ -157,6 +157,10 @@ else:
         if ctx.video_processor:
             ctx.video_processor.step_num = step_num
 
+            if ctx.video_processor.is_ok:
+                tutor.next_step()
+                st.rerun()  # 画面を再描画して次のステップ指示・画像に更新する
+
     # ---------------------------------------------------------
     # 右カラム: 手動コントロール
     # ---------------------------------------------------------
