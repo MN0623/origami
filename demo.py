@@ -122,1191 +122,407 @@ def check_Origami(i):
 
 
         # =========================================
-        # 青色マスク
-        # =========================================
+        # 青色マスクimport cv2
+import numpy as np
+import mediapipe as mp
 
-        blue_mask = cv2.inRange(
-            hsv,
-            lower_blue,
-            upper_blue
+
+# =========================================
+# MediaPipe Hands
+# =========================================
+
+mp_hands = mp.solutions.hands
+
+hands = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=2,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
+
+
+# =========================================
+# 折り紙判定
+# =========================================
+
+def check_Origami(img, i):
+
+    # =====================================
+    # 手の検出
+    # =====================================
+
+    rgb = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2RGB
+    )
+
+    results = hands.process(rgb)
+
+    hands_visible = (
+        results.multi_hand_landmarks is not None
+    )
+
+    no_hands = not hands_visible
+
+
+    # =====================================
+    # グレースケール
+    # =====================================
+
+    gray = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2GRAY
+    )
+
+
+    # =====================================
+    # GaussianBlur
+    # 細かい凹凸・ノイズを滑らかにする
+    # =====================================
+
+    gray_blur = cv2.GaussianBlur(
+        gray,
+        (5, 5),
+        0
+    )
+
+
+    # =====================================
+    # Canny
+    # =====================================
+
+    edges = cv2.Canny(
+        gray_blur,
+        50,
+        150
+    )
+
+
+    # =====================================
+    # MORPH_CLOSE
+    # 輪郭の切れ目をつなげる
+    # =====================================
+
+    kernel = np.ones(
+        (5, 5),
+        np.uint8
+    )
+
+    edges = cv2.morphologyEx(
+        edges,
+        cv2.MORPH_CLOSE,
+        kernel
+    )
+
+
+    # =====================================
+    # 輪郭検出
+    # =====================================
+
+    contours, _ = cv2.findContours(
+        edges,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+
+
+    # =====================================
+    # 小さいノイズを除去
+    # =====================================
+
+    contours = [
+        cnt
+        for cnt in contours
+        if cv2.contourArea(cnt) >= 10000
+    ]
+
+
+    # =====================================
+    # 初期値
+    # =====================================
+
+    shape_found = False
+    bottom_center = False
+
+    vertex_count = 0
+
+
+    # =====================================
+    # Step 1
+    # 五角形
+    # =====================================
+
+    if i == 1:
+
+        for cnt in contours:
+
+            perimeter = cv2.arcLength(
+                cnt,
+                True
+            )
+
+            approx = cv2.approxPolyDP(
+                cnt,
+                0.02 * perimeter,
+                True
+            )
+
+            vertices = len(approx)
+
+            if vertices == 5:
+
+                shape_found = True
+                vertex_count = vertices
+
+                break
+
+
+        result = (
+            shape_found
+            and no_hands
         )
 
 
-        # =========================================
-        # Stepごとの青色マスク処理
-        # =========================================
+    # =====================================
+    # Step 2
+    # 六角形
+    # =====================================
 
-        if i == 1 or i == 2:
+    elif i == 2:
 
-            kernel = np.ones(
-                (5, 5),
-                np.uint8
+        for cnt in contours:
+
+            perimeter = cv2.arcLength(
+                cnt,
+                True
             )
 
-        else:
-
-            kernel = np.ones(
-                (3, 3),
-                np.uint8
+            approx = cv2.approxPolyDP(
+                cnt,
+                0.03 * perimeter,
+                True
             )
 
+            vertices = len(approx)
 
-        blue_mask = cv2.morphologyEx(
-            blue_mask,
-            cv2.MORPH_OPEN,
-            kernel
-        )
+            if vertices == 6:
 
-        blue_mask = cv2.morphologyEx(
-            blue_mask,
-            cv2.MORPH_CLOSE,
-            kernel
-        )
+                shape_found = True
+                vertex_count = vertices
+
+                break
 
 
-        # =========================================
-        # 青色輪郭
-        # =========================================
-
-        contours, _ = cv2.findContours(
-            blue_mask,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_NONE
+        result = (
+            shape_found
+            and no_hands
         )
 
 
-        # =========================================
-        # 最大の青色領域
-        # =========================================
+    # =====================================
+    # Step 3
+    # 六角形
+    # ＋ 下側の頂点が中央
+    # =====================================
 
-        largest_contour = None
+    elif i == 3:
 
-        if len(contours) > 0:
+        for cnt in contours:
 
-            contours = sorted(
-                contours,
-                key=cv2.contourArea,
-                reverse=True
+            perimeter = cv2.arcLength(
+                cnt,
+                True
             )
 
-            largest_contour = contours[0]
-
-            blue_area = cv2.contourArea(
-                largest_contour
+            approx = cv2.approxPolyDP(
+                cnt,
+                0.025 * perimeter,
+                True
             )
 
+            vertices = len(approx)
 
-        # =====================================================
-        # STEP 1
-        # =====================================================
-
-        if i == 1:
-
-            # =========================================
-            # 青色領域
-            # =========================================
-
-            if (
-                largest_contour is not None
-                and blue_area > 1000
-            ):
-
-                has_blue = True
+            if vertices != 6:
+                continue
 
 
-                # =====================================
-                # 青色三角形
-                # =====================================
-
-                perimeter = cv2.arcLength(
-                    largest_contour,
-                    True
-                )
-
-                approx = cv2.approxPolyDP(
-                    largest_contour,
-                    0.02 * perimeter,
-                    True
-                )
-
-                if len(approx) == 3:
-
-                    has_blue_triangle = True
-
-                    cv2.drawContours(
-                        display,
-                        [approx],
-                        -1,
-                        (255, 0, 0),
-                        3
-                    )
+            shape_found = True
+            vertex_count = vertices
 
 
-            # =========================================
-            # 外形検出
-            # =========================================
+            # -----------------------------
+            # 頂点座標
+            # -----------------------------
 
-            gray = cv2.cvtColor(
-                frame,
-                cv2.COLOR_BGR2GRAY
+            points = approx.reshape(-1, 2)
+
+            xs = points[:, 0]
+            ys = points[:, 1]
+
+
+            # -----------------------------
+            # 一番下の頂点
+            # -----------------------------
+
+            bottom_index = np.argmax(ys)
+
+            bottom_x = xs[bottom_index]
+
+
+            # -----------------------------
+            # 中央
+            # -----------------------------
+
+            min_x = np.min(xs)
+            max_x = np.max(xs)
+
+            center_x = (
+                min_x + max_x
+            ) / 2
+
+            width = max_x - min_x
+
+
+            # -----------------------------
+            # 下側頂点が中央付近か
+            # -----------------------------
+
+            distance = abs(
+                bottom_x - center_x
             )
 
-            edges = cv2.Canny(
-                gray,
-                50,
-                150
+            bottom_center = (
+                distance < width * 0.25
             )
-
-            edge_kernel = np.ones(
-                (5, 5),
-                np.uint8
-            )
-
-            edges = cv2.dilate(
-                edges,
-                edge_kernel
-            )
-
-
-            outer_contours, _ = cv2.findContours(
-                edges,
-                cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_SIMPLE
-            )
-
-
-            for contour in outer_contours:
-
-                area = cv2.contourArea(contour)
-
-                if area < 10000:
-                    continue
-
-                perimeter = cv2.arcLength(
-                    contour,
-                    True
-                )
-
-                approx = cv2.approxPolyDP(
-                    contour,
-                    0.02 * perimeter,
-                    True
-                )
-
-                if len(approx) == 5:
-
-                    is_pentagon = True
-
-                    cv2.drawContours(
-                        display,
-                        [approx],
-                        -1,
-                        (0, 255, 0),
-                        3
-                    )
-
-                    break
-
-
-        # =====================================================
-        # STEP 2
-        # =====================================================
-
-        elif i == 2:
-
-            # =========================================
-            # 青色
-            # =========================================
-
-            if (
-                largest_contour is not None
-                and blue_area > 1000
-            ):
-
-                has_blue = True
-
-
-                # =====================================
-                # 青色の中心
-                # =====================================
-
-                M = cv2.moments(
-                    largest_contour
-                )
-
-                if M["m00"] != 0:
-
-                    blue_cx = (
-                        M["m10"] /
-                        M["m00"]
-                    )
-
-                    blue_cy = (
-                        M["m01"] /
-                        M["m00"]
-                    )
-
-                else:
-
-                    blue_cx = 0
-                    blue_cy = 0
-
-
-            # =========================================
-            # 外形検出
-            # =========================================
-
-            gray = cv2.cvtColor(
-                frame,
-                cv2.COLOR_BGR2GRAY
-            )
-
-            edges = cv2.Canny(
-                gray,
-                50,
-                150
-            )
-
-            edge_kernel = np.ones(
-                (5, 5),
-                np.uint8
-            )
-
-            edges = cv2.dilate(
-                edges,
-                edge_kernel
-            )
-
-
-            outer_contours, _ = cv2.findContours(
-                edges,
-                cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_SIMPLE
-            )
-
-
-            hexagon = None
-
-
-            for contour in outer_contours:
-
-                area = cv2.contourArea(contour)
-
-                if area < 10000:
-                    continue
-
-
-                # =====================================
-                # 凸包
-                # =====================================
-
-                hull = cv2.convexHull(
-                    contour
-                )
-
-
-                perimeter = cv2.arcLength(
-                    hull,
-                    True
-                )
-
-                approx = cv2.approxPolyDP(
-                    hull,
-                    0.03 * perimeter,
-                    True
-                )
-
-
-                if len(approx) == 6:
-
-                    is_hexagon = True
-
-                    hexagon = approx
-
-                    cv2.drawContours(
-                        display,
-                        [approx],
-                        -1,
-                        (0, 255, 0),
-                        3
-                    )
-
-                    break
-
-
-            # =========================================
-            # 青色面積割合
-            # =========================================
-
-            if hexagon is not None:
-
-                hexagon_area = cv2.contourArea(
-                    hexagon
-                )
-
-                if hexagon_area > 0:
-
-                    blue_ratio = (
-                        blue_area /
-                        hexagon_area
-                    )
-
-
-            blue_area_ok = (
-                blue_ratio >= 0.50
-            )
-
-
-            # =========================================
-            # 黄色マスク
-            # =========================================
-
-            yellow_mask = cv2.inRange(
-                hsv,
-                lower_yellow,
-                upper_yellow
-            )
-
-
-            yellow_kernel = np.ones(
-                (7, 7),
-                np.uint8
-            )
-
-            yellow_mask = cv2.morphologyEx(
-                yellow_mask,
-                cv2.MORPH_OPEN,
-                yellow_kernel
-            )
-
-            yellow_mask = cv2.morphologyEx(
-                yellow_mask,
-                cv2.MORPH_CLOSE,
-                yellow_kernel
-            )
-
-
-            # =========================================
-            # 黄色輪郭
-            # =========================================
-
-            yellow_contours, _ = cv2.findContours(
-                yellow_mask,
-                cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_SIMPLE
-            )
-
-
-            if hexagon is not None:
-
-                for contour in yellow_contours:
-
-                    area = cv2.contourArea(
-                        contour
-                    )
-
-                    if area < 2000:
-                        continue
-
-
-                    perimeter = cv2.arcLength(
-                        contour,
-                        True
-                    )
-
-                    approx_yellow = cv2.approxPolyDP(
-                        contour,
-                        0.03 * perimeter,
-                        True
-                    )
-
-
-                    if len(approx_yellow) != 4:
-                        continue
-
-
-                    M = cv2.moments(
-                        contour
-                    )
-
-                    if M["m00"] == 0:
-                        continue
-
-
-                    cx = (
-                        M["m10"] /
-                        M["m00"]
-                    )
-
-                    cy = (
-                        M["m01"] /
-                        M["m00"]
-                    )
-
-
-                    inside = cv2.pointPolygonTest(
-                        hexagon,
-                        (float(cx), float(cy)),
-                        False
-                    )
-
-
-                    if inside < 0:
-                        continue
-
-
-                    hex_M = cv2.moments(
-                        hexagon
-                    )
-
-                    if hex_M["m00"] == 0:
-                        continue
-
-
-                    hex_center_x = (
-                        hex_M["m10"] /
-                        hex_M["m00"]
-                    )
-
-
-                    if cx < hex_center_x:
-
-                        left_yellow = True
-
-                    else:
-
-                        right_yellow = True
-
-
-                    cv2.drawContours(
-                        display,
-                        [approx_yellow],
-                        -1,
-                        (0, 255, 255),
-                        3
-                    )
-
-
-            # =========================================
-            # 黄色マスク表示
-            # =========================================
-
-            cv2.imshow(
-                "Yellow Mask",
-                yellow_mask
-            )
-
-
-        # =====================================================
-        # STEP 3
-        # =====================================================
-
-        elif i == 3:
-
-            if (
-                largest_contour is not None
-                and blue_area > 10000
-            ):
-
-                has_blue = True
-
-
-                # =====================================
-                # 六角形
-                # =====================================
-
-                perimeter = cv2.arcLength(
-                    largest_contour,
-                    True
-                )
-
-                approx = cv2.approxPolyDP(
-                    largest_contour,
-                    0.025 * perimeter,
-                    True
-                )
-
-
-                if len(approx) == 6:
-
-                    is_hexagon = True
-
-                    points = approx.reshape(
-                        -1,
-                        2
-                    )
-
-
-                    cv2.drawContours(
-                        display,
-                        [approx],
-                        -1,
-                        (0, 255, 0),
-                        3
-                    )
-
-
-                    # =================================
-                    # 中心
-                    # =================================
-
-                    min_x = np.min(
-                        points[:, 0]
-                    )
-
-                    max_x = np.max(
-                        points[:, 0]
-                    )
-
-                    min_y = np.min(
-                        points[:, 1]
-                    )
-
-                    max_y = np.max(
-                        points[:, 1]
-                    )
-
-                    center_x = (
-                        min_x + max_x
-                    ) / 2
-
-                    center_y = (
-                        min_y + max_y
-                    ) / 2
-
-
-                    width = max_x - min_x
-
-
-                    # =================================
-                    # 一番下の頂点
-                    # =================================
-
-                    bottom_point = max(
-                        points,
-                        key=lambda p: p[1]
-                    )
-
-                    bottom_x = bottom_point[0]
-                    bottom_y = bottom_point[1]
-
-
-                    bottom_distance = abs(
-                        bottom_x - center_x
-                    )
-
-
-                    bottom_threshold = (
-                        width * 0.25
-                    )
-
-
-                    if bottom_distance < bottom_threshold:
-
-                        has_bottom_point = True
-
-                        cv2.circle(
-                            display,
-                            (
-                                int(bottom_x),
-                                int(bottom_y)
-                            ),
-                            14,
-                            (0, 255, 255),
-                            3
-                        )
-
-
-        # =====================================================
-        # STEP 4
-        # =====================================================
-
-        elif i == 4:
-
-            TARGET_VERTICES = 10
-            BOTTOM_CENTER_THRESHOLD = 0.25
-
-
-            if (
-                largest_contour is not None
-                and blue_area > 10000
-            ):
-
-                has_blue = True
-
-
-                # =====================================
-                # 周長
-                # =====================================
-
-                perimeter = cv2.arcLength(
-                    largest_contour,
-                    True
-                )
-
-
-                # =====================================
-                # 10頂点になるepsilonを探す
-                # =====================================
-
-                approx = None
-
-                for epsilon_ratio in np.arange(
-                    0.001,
-                    0.051,
-                    0.001
-                ):
-
-                    epsilon = (
-                        epsilon_ratio *
-                        perimeter
-                    )
-
-                    temp_approx = cv2.approxPolyDP(
-                        largest_contour,
-                        epsilon,
-                        True
-                    )
-
-
-                    if len(temp_approx) == TARGET_VERTICES:
-
-                        approx = temp_approx
-
-                        break
-
-
-                # =====================================
-                # 10頂点
-                # =====================================
-
-                if approx is not None:
-
-                    is_heart_shape = True
-
-                    vertex_count = len(
-                        approx
-                    )
-
-                    points = approx.reshape(
-                        -1,
-                        2
-                    )
-
-
-                    # =================================
-                    # 輪郭表示
-                    # =================================
-
-                    cv2.drawContours(
-                        display,
-                        [approx],
-                        -1,
-                        (0, 255, 0),
-                        3
-                    )
-
-
-                    # =================================
-                    # 頂点表示
-                    # =================================
-
-                    for n, point in enumerate(points):
-
-                        x = int(point[0])
-                        y = int(point[1])
-
-
-                        cv2.circle(
-                            display,
-                            (x, y),
-                            8,
-                            (0, 0, 255),
-                            -1
-                        )
-
-
-                        cv2.putText(
-                            display,
-                            str(n + 1),
-                            (x + 10, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6,
-                            (0, 0, 255),
-                            2
-                        )
-
-
-                    # =================================
-                    # 外形の中心
-                    # =================================
-
-                    min_x = np.min(
-                        points[:, 0]
-                    )
-
-                    max_x = np.max(
-                        points[:, 0]
-                    )
-
-                    center_x = (
-                        min_x + max_x
-                    ) / 2
-
-
-                    # =================================
-                    # 外形の幅
-                    # =================================
-
-                    width = max_x - min_x
-
-
-                    # =================================
-                    # 一番下の頂点
-                    # =================================
-
-                    bottom_point = max(
-                        points,
-                        key=lambda p: p[1]
-                    )
-
-                    bottom_x = bottom_point[0]
-                    bottom_y = bottom_point[1]
-
-
-                    # =================================
-                    # 下の頂点と中心の距離
-                    # =================================
-
-                    bottom_distance = abs(
-                        bottom_x - center_x
-                    )
-
-
-                    # =================================
-                    # 下中央にあるか
-                    # =================================
-
-                    bottom_threshold = (
-                        width *
-                        BOTTOM_CENTER_THRESHOLD
-                    )
-
-
-                    if bottom_distance < bottom_threshold:
-
-                        has_bottom_point = True
-
-                        cv2.circle(
-                            display,
-                            (
-                                int(bottom_x),
-                                int(bottom_y)
-                            ),
-                            14,
-                            (0, 255, 255),
-                            3
-                        )
-
-
-        # =====================================================
-        # MediaPipe Hands
-        # =====================================================
-
-        rgb = cv2.cvtColor(
-            frame,
-            cv2.COLOR_BGR2RGB
-        )
-
-        results = hands.process(rgb)
-
-
-        if results.multi_hand_landmarks:
-
-            hands_visible = True
-
-            for hand_landmarks in results.multi_hand_landmarks:
-
-                mp_draw.draw_landmarks(
-                    display,
-                    hand_landmarks,
-                    mp_hands.HAND_CONNECTIONS
-                )
-
-
-        # =====================================================
-        # Stepごとの最終判定
-        # =====================================================
-
-        if i == 1:
-
-            result = (
-                has_blue
-                and has_blue_triangle
-                and is_pentagon
-                and not hands_visible
-            )
-
-
-        elif i == 2:
-
-            result = (
-                has_blue
-                and is_hexagon
-                and blue_area_ok
-                and left_yellow
-                and right_yellow
-                and not hands_visible
-            )
-
-
-        elif i == 3:
-
-            result = (
-                has_blue
-                and is_hexagon
-                and has_bottom_point
-                and not hands_visible
-            )
-
-
-        elif i == 4:
-
-            result = (
-                has_blue
-                and is_heart_shape
-                and has_bottom_point
-                and not hands_visible
-            )
-
-
-        else:
-
-            print("iは1～4で指定してください")
-
-            cap.release()
-            hands.close()
-            cv2.destroyAllWindows()
-
-            return False
-
-
-        # =====================================================
-        # 100フレーム連続判定
-        # =====================================================
-
-        if result:
-
-            true_count += 1
-
-        else:
-
-            true_count = 0
-
-
-        # =====================================================
-        # デバッグ表示
-        # =====================================================
-
-        cv2.putText(
-            display,
-            f"Step: {i}",
-            (20, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2
-        )
-
-
-        cv2.putText(
-            display,
-            f"Blue: {has_blue}",
-            (20, 60),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2
-        )
-
-
-        if i == 1:
-
-            cv2.putText(
-                display,
-                f"Blue Triangle: {has_blue_triangle}",
-                (20, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Pentagon: {is_pentagon}",
-                (20, 120),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-
-        elif i == 2:
-
-            cv2.putText(
-                display,
-                f"Hexagon: {is_hexagon}",
-                (20, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Blue ratio: {blue_ratio:.2f}",
-                (20, 120),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Left Yellow: {left_yellow}",
-                (20, 150),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Right Yellow: {right_yellow}",
-                (20, 180),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-
-        elif i == 3:
-
-            cv2.putText(
-                display,
-                f"Hexagon: {is_hexagon}",
-                (20, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Bottom point: {has_bottom_point}",
-                (20, 120),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-
-        elif i == 4:
-
-            cv2.putText(
-                display,
-                f"10 Vertices: {vertex_count == 10}",
-                (20, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Bottom point: {has_bottom_point}",
-                (20, 120),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                display,
-                f"Bottom distance: {bottom_distance:.1f}",
-                (20, 150),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2
-            )
-
-
-        # =========================================
-        # 手の表示
-        # =========================================
-
-        cv2.putText(
-            display,
-            f"Hand: {hands_visible}",
-            (20, 210),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2
-        )
-
-
-        # =========================================
-        # True count
-        # =========================================
-
-        cv2.putText(
-            display,
-            f"True count: {true_count}/100",
-            (20, 240),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2
-        )
-
-
-        # =========================================
-        # 判定結果
-        # =========================================
-
-        if result:
-
-            cv2.putText(
-                display,
-                "Checking...",
-                (20, 280),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (0, 255, 0),
-                3
-            )
-
-        else:
-
-            cv2.putText(
-                display,
-                "FALSE",
-                (20, 280),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (0, 0, 255),
-                3
-            )
-
-
-        # =========================================
-        # Blue Mask
-        # =========================================
-
-        cv2.imshow(
-            "Blue Mask",
-            blue_mask
-        )
-
-
-        # =========================================
-        # カメラ映像
-        # =========================================
-
-        cv2.imshow(
-            "Origami Detection",
-            display
-        )
-
-
-        # =========================================
-        # 100フレーム連続True
-        # =========================================
-
-        if true_count >= REQUIRED_TRUE_FRAMES:
-
-            print()
-            print("==============================")
-            print(f"Step {i}: 正しい形です！")
-            print("==============================")
-
-
-            cv2.putText(
-                display,
-                "TRUE",
-                (30, 60),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.5,
-                (0, 255, 0),
-                4
-            )
-
-
-            cv2.imshow(
-                "Origami Detection",
-                display
-            )
-
-            cv2.waitKey(1000)
-
-            cap.release()
-            hands.close()
-            cv2.destroyAllWindows()
-
-            return True
-
-
-        # =========================================
-        # ESC
-        # =========================================
-
-        key = cv2.waitKey(1) & 0xFF
-
-        if key == 27:
 
             break
 
 
-    # =========================================
-    # 終了処理
-    # =========================================
-
-    cap.release()
-    hands.close()
-    cv2.destroyAllWindows()
-
-    return False
+        result = (
+            shape_found
+            and bottom_center
+            and no_hands
+        )
 
 
-# =========================================
-# 呼び出し用
-# =========================================
+    # =====================================
+    # Step 4
+    # 10頂点
+    # ＋ 下側の頂点が中央
+    # =====================================
 
-def wait_for_cv_result(i):
-    return check_Origami(i)
+    elif i == 4:
+
+        for cnt in contours:
+
+            perimeter = cv2.arcLength(
+                cnt,
+                True
+            )
+
+            found_10 = None
 
 
-# =========================================
-# テストする場合
-# =========================================
+            # -----------------------------
+            # 10頂点になる近似値を探す
+            # -----------------------------
 
-if __name__ == "__main__":
+            for epsilon_ratio in np.arange(
+                0.001,
+                0.051,
+                0.001
+            ):
 
-    # 1～4のどれかを指定
-    i = 4
+                approx = cv2.approxPolyDP(
+                    cnt,
+                    epsilon_ratio * perimeter,
+                    True
+                )
 
-    result = wait_for_cv_result(i)
+                if len(approx) == 10:
 
-    print("判定結果:", result)
+                    found_10 = approx
+                    break
+
+
+            if found_10 is None:
+                continue
+
+
+            approx = found_10
+
+            shape_found = True
+            vertex_count = 10
+
+
+            # -----------------------------
+            # 頂点座標
+            # -----------------------------
+
+            points = approx.reshape(-1, 2)
+
+            xs = points[:, 0]
+            ys = points[:, 1]
+
+
+            # -----------------------------
+            # 一番下の頂点
+            # -----------------------------
+
+            bottom_index = np.argmax(ys)
+
+            bottom_x = xs[bottom_index]
+
+
+            # -----------------------------
+            # 中央
+            # -----------------------------
+
+            min_x = np.min(xs)
+            max_x = np.max(xs)
+
+            center_x = (
+                min_x + max_x
+            ) / 2
+
+            width = max_x - min_x
+
+
+            # -----------------------------
+            # 下側頂点が中央付近
+            # -----------------------------
+
+            distance = abs(
+                bottom_x - center_x
+            )
+
+            bottom_center = (
+                distance < width * 0.25
+            )
+
+            break
+
+
+        result = (
+            shape_found
+            and bottom_center
+            and no_hands
+        )
+
+
+    # =====================================
+    # Step番号エラー
+    # =====================================
+
+    else:
+
+        raise ValueError(
+            "Step番号は1～4で指定してください。"
+        )
+
+
+    # =====================================
+    # 判定結果を返す
+    # =====================================
+
+    return result
