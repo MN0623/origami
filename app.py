@@ -1,4 +1,3 @@
-
 import streamlit as st
 import cv2
 import numpy as np
@@ -175,15 +174,14 @@ else:
 
         btn_col1, btn_col2 = st.columns(2)
         
-                with btn_col1:
-                    if st.button("前のステップに戻る", use_container_width=True):
-                        if tutor.current_step > 0:
-                            tutor.current_step -= 1
-                            tutor.finished = False
-                            st.rerun()
-        
-                with btn_col2:
-                    if st.button("強制的に次のステップへ", use_container_width=True):
-                        tutor.next_step()
-                        st.rerun()
-                        
+        with btn_col1:
+            if st.button("前のステップに戻る", use_container_width=True):
+                if tutor.current_step > 0:
+                    tutor.current_step -= 1
+                    tutor.finished = False
+                    st.rerun()
+
+        with btn_col2:
+            if st.button("強制的に次のステップへ", use_container_width=True):
+                tutor.next_step()
+                st.rerun()
