@@ -30,10 +30,17 @@ st.title("折り紙チューター：ハートの折り方")
 # ---------------------------------------------------------
 # 映像処理クラス
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# 映像処理クラス
+# ---------------------------------------------------------
 class OrigamiProcessor(VideoProcessorBase):
     def __init__(self):
         self.step_num = 1
         self.is_ok = False
+        
+        # --- 【追加】連続判定用カウンター ---
+        self.ok_counter = 0
+        self.REQUIRED_FRAMES = 8  # 8フレーム連続OKで達成（約0.25〜0.3秒間キープ）
         
         # 描画用のMediaPipe Handsインスタンス
         self.hands = mp_hands.Hands(
@@ -43,34 +50,32 @@ class OrigamiProcessor(VideoProcessorBase):
             min_tracking_confidence=0.5
         )
 
+    def reset_counter(self):
+        """ステップ遷移時などにカウンターをリセットするメソッド"""
+        self.ok_counter = 0
+        self.is_ok = False
+
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # 1. demo.py による判定
+        # 1. demo.py による単一フレーム判定
         try:
-            self.is_ok = demo.check_Origami(img, self.step_num)
+            current_frame_ok = demo.check_Origami(img, self.step_num)
         except Exception:
-            self.is_ok = False
+            current_frame_ok = False
 
-        # 2. 描画処理
+        # --- 【追加】連続成功カウント処理 ---
+        if current_frame_ok:
+            self.ok_counter += 1
+        else:
+            self.ok_counter = 0  # 判定が切れたら即リセット
+
+        # 規定のフレーム数を超えて保持された場合のみ OK フラグを立てる
+        self.is_ok = (self.ok_counter >= self.REQUIRED_FRAMES)
+
+        # 2. 描画処理 (可視化用テキストに連続フレーム数を出すと分かりやすい)
         display = img.copy()
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-        # 青色領域の検出
-        lower_blue = np.array([90, 50, 50])
-        upper_blue = np.array([150, 255, 255])
-        blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
-        
-        kernel_size = (5, 5) if self.step_num in [1, 2] else (3, 3)
-        kernel = np.ones(kernel_size, np.uint8)
-        blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, kernel)
-        blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
-
-        blue_contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        if blue_contours:
-            largest_blue = max(blue_contours, key=cv2.contourArea)
-            if cv2.contourArea(largest_blue) > 1000:
-                cv2.drawContours(display, [largest_blue], -1, (255, 0, 0), 2)
 
         # 外形ポリゴンの検出
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -102,9 +107,9 @@ class OrigamiProcessor(VideoProcessorBase):
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_draw.draw_landmarks(display, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-        # 判定ステータスの描画
+        # --- 判定ステータスの描画（進行カウントプログレスを表示） ---
         color = (0, 255, 0) if self.is_ok else (0, 0, 255)
-        text = f"Step {self.step_num}: {'OK' if self.is_ok else 'NG'}"
+        text = f"Step {self.step_num}: {'OK' if self.is_ok else 'NG'} ({min(self.ok_counter, self.REQUIRED_FRAMES)}/{self.REQUIRED_FRAMES})"
         cv2.putText(display, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
 
         return av.VideoFrame.from_ndarray(display, format="bgr24")
@@ -152,10 +157,9 @@ else:
 
         if ctx.video_processor:
             ctx.video_processor.step_num = step_num
-
-            # OKフラグを検知したらステップを進めてフラグを下げる
+            # 規定フレーム数連続でOKフラグが立った場合
             if ctx.video_processor.is_ok:
-                ctx.video_processor.is_ok = False  # 連進を防ぐためフラグをリセット
+                ctx.video_processor.reset_counter()  # カウンターとOKフラグを初期化
                 tutor.next_step()
                 st.rerun()
 
