@@ -4,6 +4,7 @@ import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
 import av
 import mediapipe as mp
+from streamlit_autorefresh import st_autorefresh  # 追加
 
 from origami_tutor import STEPS, OrigamiTutor
 import demo
@@ -27,7 +28,7 @@ tutor = st.session_state.tutor
 st.title("折り紙チューター：ハートの折り方")
 
 # ---------------------------------------------------------
-# 映像処理クラス (demo.py を変更せずに可視化描画を追加)
+# 映像処理クラス
 # ---------------------------------------------------------
 class OrigamiProcessor(VideoProcessorBase):
     def __init__(self):
@@ -45,21 +46,17 @@ class OrigamiProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # -------------------------------------------------
-        # 1. demo.py による判定（元の処理をそのまま呼び出し）
-        # -------------------------------------------------
+        # 1. demo.py による判定
         try:
             self.is_ok = demo.check_Origami(img, self.step_num)
         except Exception:
             self.is_ok = False
 
-        # -------------------------------------------------
-        # 2. 画面への可視化オーバーレイ描画処理 (app.py 側で実行)
-        # -------------------------------------------------
+        # 2. 描画処理
         display = img.copy()
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # --- 【青色領域の検出・描画】 ---
+        # 青色領域の検出
         lower_blue = np.array([90, 50, 50])
         upper_blue = np.array([150, 255, 255])
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
@@ -73,10 +70,9 @@ class OrigamiProcessor(VideoProcessorBase):
         if blue_contours:
             largest_blue = max(blue_contours, key=cv2.contourArea)
             if cv2.contourArea(largest_blue) > 1000:
-                # 青色領域の輪郭を青い線で描画
                 cv2.drawContours(display, [largest_blue], -1, (255, 0, 0), 2)
 
-        # --- 【外形ポリゴンの検出・描画】 ---
+        # 外形ポリゴンの検出
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
         edges = cv2.dilate(edges, np.ones((5, 5), np.uint8))
@@ -89,27 +85,24 @@ class OrigamiProcessor(VideoProcessorBase):
             perimeter = cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
             
-            # 認識した輪郭を緑線で描画、頂点数をテキスト表示
             cv2.drawContours(display, [approx], -1, (0, 255, 0), 2)
             for pt in approx:
                 cv2.circle(display, tuple(pt[0]), 4, (0, 255, 255), -1)
             
-            # 輪郭の近傍に頂点数を表示
             x, y, w, h = cv2.boundingRect(approx)
             cv2.putText(display, f"Vertices: {len(approx)}", (x, y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # --- 【手の検出・描画】 ---
+        # 手の検出
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         rgb.flags.writeable = False
         results = self.hands.process(rgb)
         
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
-                # 検出された手に赤点と骨格線を描画
                 mp_draw.draw_landmarks(display, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-        # --- 【判定ステータスの描画】 ---
+        # 判定ステータスの描画
         color = (0, 255, 0) if self.is_ok else (0, 0, 255)
         text = f"Step {self.step_num}: {'OK' if self.is_ok else 'NG'}"
         cv2.putText(display, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
@@ -125,6 +118,9 @@ if tutor.is_finished():
         st.rerun()
 
 else:
+    # 500ミリ秒（0.5秒）ごとにメインスレッドの状態をミリ秒単位で確認
+    st_autorefresh(interval=500, key="origami_step_checker")
+
     current_step_data = tutor.get_current_step()
     step_num = tutor.get_current_step_number()
     instruction = current_step_data["instruction"]
@@ -157,19 +153,19 @@ else:
         if ctx.video_processor:
             ctx.video_processor.step_num = step_num
 
+            # OKフラグを検知したらステップを進めてフラグを下げる
             if ctx.video_processor.is_ok:
+                ctx.video_processor.is_ok = False  # 連進を防ぐためフラグをリセット
                 tutor.next_step()
-                st.rerun()  # 画面を再描画して次のステップ指示・画像に更新する
+                st.rerun()
 
     # ---------------------------------------------------------
     # 右カラム: 手動コントロール
     # ---------------------------------------------------------
     with col2:
-        # STEPS の "image" キーから画像パスを取得
         image_path = current_step_data.get("image")
         
         if image_path:
-            # 画像を表示（ファイルが存在しない場合エラーにならないよう表示）
             st.image(image_path, caption=f"Step {step_num} のお手本", use_container_width=True)
         else:
             st.info("※ このステップの解説画像はありません。")
