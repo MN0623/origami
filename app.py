@@ -9,7 +9,7 @@ from streamlit_autorefresh import st_autorefresh  # 追加
 from origami_tutor import STEPS, OrigamiTutor
 import demo
 
-st.set_page_config(page_title="折り紙チューター：ハート", layout="wide")
+st.set_page_config(page_title="Origami tutor：Heart", layout="wide")
 
 # ---------------------------------------------------------
 # MediaPipe Hands の初期化（描画用）
@@ -25,7 +25,7 @@ if "tutor" not in st.session_state:
 
 tutor = st.session_state.tutor
 
-st.title("折り紙チューター：ハートの折り方")
+st.title("Origami tutor：how to make a heart")
 
 # ---------------------------------------------------------
 # 映像処理クラス
@@ -115,13 +115,16 @@ class OrigamiProcessor(VideoProcessorBase):
         return av.VideoFrame.from_ndarray(display, format="bgr24")
 
 # 完了時の表示
-if tutor.is_finished():
+step_num = tutor.get_current_step_number()
+
+# Step 5 に到達した場合（完成）
+if step_num == 5:
     st.balloons()
-    st.success("🎉 おめでとうございます！ハートの折り紙が完成しました！")
-    if st.button("最初からやり直す"):
+    st.success("🎉finished！")
+
+    if st.button("Restart", use_container_width=True):
         st.session_state.tutor = OrigamiTutor(STEPS)
         st.rerun()
-
 else:
     # 500ミリ秒（0.5秒）ごとにメインスレッドの状態をミリ秒単位で確認
     st_autorefresh(interval=500, key="origami_step_checker")
@@ -170,22 +173,22 @@ else:
         image_path = current_step_data.get("image")
         
         if image_path:
-            st.image(image_path, caption=f"Step {step_num} のお手本", use_container_width=True)
+            st.image(image_path, caption=f"Example for Step {step_num} ", use_container_width=True)
         else:
-            st.info("※ このステップの解説画像はありません。")
+            st.info("No image")
 
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
         
         with btn_col1:
-            if st.button("前のステップに戻る", use_container_width=True):
+            if st.button("Back", use_container_width=True):
                 if tutor.current_step > 0:
                     tutor.current_step -= 1
                     tutor.finished = False
                     st.rerun()
 
         with btn_col2:
-            if st.button("強制的に次のステップへ", use_container_width=True):
+            if st.button("Next step", use_container_width=True):
                 tutor.next_step()
                 st.rerun()
