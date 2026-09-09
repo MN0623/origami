@@ -16,30 +16,30 @@ STEPS = [
     {
         "step": 1,
         "instruction": "Fold the top corner down to the center crease.",
-        "image": "images/step1.png"
+        "image": "images/STEP1.png"
     },
 
     {
         "step": 2,
         "instruction": "Fold the bottom corner up to the crease on the top edge.",
-        "image": "images/step2.png"
+        "image": "images/STEP2.png"
     },
 
     {
         "step": 3,
         "instruction": "Fold the lower left and lower right edges diagonally toward the center crease.",
-        "image": "images/step3.png"
+        "image": "images/STEP3.png"
     },
 
     {
         "step": 4,
         "instruction": "Fold the top and the four side corners backward as shown in the picture.",
-        "image": "images/step4.png"
+        "image": "images/STEP4.png"
     },
     {
         "step": 5,
         "instruction": "fin.",
-        "image": "images/step5.png"
+        "image": "images/STEP5.png"
     }
 ]
 
