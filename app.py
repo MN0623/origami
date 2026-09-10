@@ -182,6 +182,7 @@ else:
 
     st.subheader(f"Step {step_num} / {total_steps}")
     st.info(f"**instructions : ** {instruction}")
+    st.write("Once finished, move your hands out of the frame to show the full origami.")
 
     col1, col2 = st.columns([1, 1])
 
