@@ -181,22 +181,10 @@ else:
     total_steps = len(STEPS)
 
     st.subheader(f"Step {step_num} / {total_steps}")
-    # st.info(f"instructions :  {instruction}")
-    st.markdown(
-        f"""
-        <div style="
-            background-color: #e8f4f8; 
-            padding: 16px 20px; 
-            border-radius: 8px; 
-            border-left: 6px solid #29b6f6; 
-            margin-bottom: 20px;
-        ">
-            <span style="font-size: 22px; font-weight: bold; color: #0c5460;">instructions : </span>
-            <span style="font-size: 24px; font-weight: 600; color: #111111;">{instruction}</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    
+    # 1. 後からメッセージを書き換えるためのプレースホルダーを作成
+    instruction_placeholder = st.empty()
+
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -206,14 +194,47 @@ else:
             video_processor_factory=OrigamiProcessor,
             media_stream_constraints={
                 "video": {
-                    # 解像度を 640x480 に落としてメモリと通信量を大幅削減
                     "width": {"ideal": 640},
                     "height": {"ideal": 480},
-                    "frameRate": {"ideal": 15},  # FPSを抑えるのも効果的
+                    "frameRate": {"ideal": 15},
                 },
                 "audio": False,
             },
             async_processing=True,
+        )
+
+        # 2. カメラの起動状態を確認
+        is_camera_on = ctx.state.playing if ctx and ctx.state else False
+
+        # 3. カメラの状態に応じて表示テキストとデザインを切り替え
+        if is_camera_on:
+            label_text = "instructions :"
+            msg_text = instruction
+            bg_color = "#e8f4f8"
+            border_color = "#29b6f6"
+            label_color = "#0c5460"
+        else:
+            label_text = "Notice :"
+            msg_text = "📷 下の「START」ボタンを押してカメラを起動し、折り紙を開始しましょう！"
+            bg_color = "#fff3cd"  # 黄色系の注意喚起カラー
+            border_color = "#ffc107"
+            label_color = "#856404"
+
+        # プレースホルダーに表示をセット
+        instruction_placeholder.markdown(
+            f"""
+            <div style="
+                background-color: {bg_color}; 
+                padding: 12px 16px; 
+                border-radius: 6px; 
+                border-left: 5px solid {border_color}; 
+                margin-bottom: 16px;
+            ">
+                <span style="font-size: 16px; font-weight: bold; color: {label_color};">{label_text} </span>
+                <span style="font-size: 18px; font-weight: 500; color: #111111;">{msg_text}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
         if ctx.video_processor:
