@@ -181,7 +181,22 @@ else:
     total_steps = len(STEPS)
 
     st.subheader(f"Step {step_num} / {total_steps}")
-    st.info(f"**instructions : ** {instruction}")
+    # st.info(f"instructions :  {instruction}")
+    st.markdown(
+        f"""
+        <div style="
+            background-color: #e8f4f8; 
+            padding: 16px 20px; 
+            border-radius: 8px; 
+            border-left: 6px solid #29b6f6; 
+            margin-bottom: 20px;
+        ">
+            <span style="font-size: 22px; font-weight: bold; color: #0c5460;">instructions : </span>
+            <span style="font-size: 24px; font-weight: 600; color: #111111;">{instruction}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     col1, col2 = st.columns([1, 1])
 
     with col1:
