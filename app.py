@@ -34,13 +34,16 @@ class OrigamiProcessor(VideoProcessorBase):
         self.is_ok = False
         self.ok_counter = 0
         self.REQUIRED_FRAMES = 8
-        self.frame_count = 0  # フレームスキップ用
+        self.frame_count = 0
 
-        # メモリ・計算量軽量化の設定 (model_complexity=0)
+        # --- 【追加】前回の検出結果を保持する変数 ---
+        self.last_approx_list = []
+        self.last_hand_landmarks = None
+
         self.hands = mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=2,
-            model_complexity=0,  # 0: 軽量モデル, 1: 標準
+            model_complexity=0,
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
         )
@@ -66,12 +69,13 @@ class OrigamiProcessor(VideoProcessorBase):
 
         self.is_ok = self.ok_counter >= self.REQUIRED_FRAMES
 
-        # 2. 描画処理 (画面表示用)
         display = img.copy()
 
-        # 負荷軽減：MediaPipeと輪郭検出は2フレームに1回だけ処理
+        # ---------------------------------------------------------
+        # 重い「検出処理」は 2フレームに1回だけ実行して結果を保存
+        # ---------------------------------------------------------
         if self.frame_count % 2 == 0:
-            # --- 輪郭検出 ---
+            # --- 輪郭の計算 ---
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             edges = cv2.Canny(gray, 50, 150)
             edges = cv2.dilate(edges, np.ones((5, 5), np.uint8))
@@ -79,36 +83,44 @@ class OrigamiProcessor(VideoProcessorBase):
                 edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
 
+            self.last_approx_list = []
             for contour in outer_contours:
                 if cv2.contourArea(contour) < 10000:
                     continue
                 perimeter = cv2.arcLength(contour, True)
                 approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
-                cv2.drawContours(display, [approx], -1, (0, 255, 0), 2)
-                for pt in approx:
-                    cv2.circle(display, tuple(pt[0]), 4, (0, 255, 255), -1)
+                self.last_approx_list.append(approx)
 
-                x, y, w, h = cv2.boundingRect(approx)
-                cv2.putText(
-                    display,
-                    f"Vertices: {len(approx)}",
-                    (x, y - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2,
-                )
-
-            # --- 手の検出 (RGB変換は1回のみ) ---
+            # --- 手の計算 ---
             rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             results = self.hands.process(rgb)
             if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
-                    mp_draw.draw_landmarks(
-                        display, hand_landmarks, mp_hands.HAND_CONNECTIONS
-                    )
+                self.last_hand_landmarks = results.multi_hand_landmarks
+            else:
+                self.last_hand_landmarks = None
 
-        # ステータス描画
+        # ---------------------------------------------------------
+        # 「描画処理」は前回の結果を使って【毎フレーム】実行する
+        # （これでチカチカしなくなります！）
+        # ---------------------------------------------------------
+        # 1. 輪郭の描画
+        for approx in self.last_approx_list:
+            cv2.drawContours(display, [approx], -1, (0, 255, 0), 2)
+            for pt in approx:
+                cv2.circle(display, tuple(pt[0]), 4, (0, 255, 255), -1)
+
+            x, y, w, h = cv2.boundingRect(approx)
+            cv2.putText(
+                display,
+                f"Vertices: {len(approx)}",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2,
+            )
+
+        # 3. ステータス描画
         color = (0, 255, 0) if self.is_ok else (0, 0, 255)
         text = f"Step {self.step_num}: {'OK' if self.is_ok else 'NG'} ({min(self.ok_counter, self.REQUIRED_FRAMES)}/{self.REQUIRED_FRAMES})"
         cv2.putText(
@@ -122,7 +134,6 @@ class OrigamiProcessor(VideoProcessorBase):
         )
 
         return av.VideoFrame.from_ndarray(display, format="bgr24")
-
 
 # ---------------------------------------------------------
 # メイン画面処理
