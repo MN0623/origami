@@ -256,20 +256,9 @@ else:
         else:
             st.info("No image")
         st.markdown(
-            f"""
-            <div style="
-                background-color: #e8f4f8; 
-                padding: 16px 20px; 
-                border-radius: 8px; 
-                border-left: 6px solid #29b6f6; 
-                margin-bottom: 20px;
-            ">
-                <span style="font-size: 22px; font-weight: bold; color: #0c5460;">instructions : </span>
-                <span style="font-size: 24px; font-weight: 600; color: #111111;">{instruction}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+                    "<p style='text-align: center;'>Once finished, move your hands out of the frame to show the full origami.</p>",
+                    unsafe_allow_html=True
+                )
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
