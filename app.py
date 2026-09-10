@@ -1,25 +1,21 @@
-import streamlit as st
-import cv2
-import numpy as np
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
 import av
+import cv2
 import mediapipe as mp
-from streamlit_autorefresh import st_autorefresh  # 追加
+import numpy as np
+import streamlit as st
+from streamlit_autorefresh import st_autorefresh
+from streamlit_webrtc import VideoProcessorBase, WebRtcMode, webrtc_streamer
 
-from origami_tutor import STEPS, OrigamiTutor
 import demo
+from origami_tutor import STEPS, OrigamiTutor
 
 st.set_page_config(page_title="Origami tutor：Heart", layout="wide")
 
-# ---------------------------------------------------------
-# MediaPipe Hands の初期化（描画用）
-# ---------------------------------------------------------
+# MediaPipe Hands の初期化
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
 
-# ---------------------------------------------------------
 # セッション状態の初期化
-# ---------------------------------------------------------
 if "tutor" not in st.session_state:
     st.session_state.tutor = OrigamiTutor(STEPS)
 
@@ -27,105 +23,118 @@ tutor = st.session_state.tutor
 
 st.title("Origami tutor：how to make a heart")
 
+
 # ---------------------------------------------------------
-# 映像処理クラス
-# ---------------------------------------------------------
-# ---------------------------------------------------------
-# 映像処理クラス
+# 映像処理クラス (軽量化・メモリ最適化版)
 # ---------------------------------------------------------
 class OrigamiProcessor(VideoProcessorBase):
+
     def __init__(self):
         self.step_num = 1
         self.is_ok = False
-        
-        # --- 【追加】連続判定用カウンター ---
         self.ok_counter = 0
-        self.REQUIRED_FRAMES = 8  # 8フレーム連続OKで達成（約0.25〜0.3秒間キープ）
-        
-        # 描画用のMediaPipe Handsインスタンス
+        self.REQUIRED_FRAMES = 8
+        self.frame_count = 0  # フレームスキップ用
+
+        # メモリ・計算量軽量化の設定 (model_complexity=0)
         self.hands = mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=2,
+            model_complexity=0,  # 0: 軽量モデル, 1: 標準
             min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_tracking_confidence=0.5,
         )
 
     def reset_counter(self):
-        """ステップ遷移時などにカウンターをリセットするメソッド"""
         self.ok_counter = 0
         self.is_ok = False
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        self.frame_count += 1
         img = frame.to_ndarray(format="bgr24")
 
-        # 1. demo.py による単一フレーム判定
+        # 1. 判定処理 (demo.py)
         try:
             current_frame_ok = demo.check_Origami(img, self.step_num)
         except Exception:
             current_frame_ok = False
 
-        # --- 【追加】連続成功カウント処理 ---
         if current_frame_ok:
             self.ok_counter += 1
         else:
-            self.ok_counter = 0  # 判定が切れたら即リセット
+            self.ok_counter = 0
 
-        # 規定のフレーム数を超えて保持された場合のみ OK フラグを立てる
-        self.is_ok = (self.ok_counter >= self.REQUIRED_FRAMES)
+        self.is_ok = self.ok_counter >= self.REQUIRED_FRAMES
 
-        # 2. 描画処理 (可視化用テキストに連続フレーム数を出すと分かりやすい)
+        # 2. 描画処理 (画面表示用)
         display = img.copy()
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # 外形ポリゴンの検出
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 50, 150)
-        edges = cv2.dilate(edges, np.ones((5, 5), np.uint8))
-        outer_contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # 負荷軽減：MediaPipeと輪郭検出は2フレームに1回だけ処理
+        if self.frame_count % 2 == 0:
+            # --- 輪郭検出 ---
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            edges = cv2.Canny(gray, 50, 150)
+            edges = cv2.dilate(edges, np.ones((5, 5), np.uint8))
+            outer_contours, _ = cv2.findContours(
+                edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
 
-        for contour in outer_contours:
-            if cv2.contourArea(contour) < 10000:
-                continue
-            
-            perimeter = cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
-            
-            cv2.drawContours(display, [approx], -1, (0, 255, 0), 2)
-            for pt in approx:
-                cv2.circle(display, tuple(pt[0]), 4, (0, 255, 255), -1)
-            
-            x, y, w, h = cv2.boundingRect(approx)
-            cv2.putText(display, f"Vertices: {len(approx)}", (x, y - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            for contour in outer_contours:
+                if cv2.contourArea(contour) < 10000:
+                    continue
+                perimeter = cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+                cv2.drawContours(display, [approx], -1, (0, 255, 0), 2)
+                for pt in approx:
+                    cv2.circle(display, tuple(pt[0]), 4, (0, 255, 255), -1)
 
-        # 手の検出
-        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        rgb.flags.writeable = False
-        results = self.hands.process(rgb)
-        
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                mp_draw.draw_landmarks(display, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                x, y, w, h = cv2.boundingRect(approx)
+                cv2.putText(
+                    display,
+                    f"Vertices: {len(approx)}",
+                    (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
+                )
 
-        # --- 判定ステータスの描画（進行カウントプログレスを表示） ---
+            # --- 手の検出 (RGB変換は1回のみ) ---
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            results = self.hands.process(rgb)
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    mp_draw.draw_landmarks(
+                        display, hand_landmarks, mp_hands.HAND_CONNECTIONS
+                    )
+
+        # ステータス描画
         color = (0, 255, 0) if self.is_ok else (0, 0, 255)
         text = f"Step {self.step_num}: {'OK' if self.is_ok else 'NG'} ({min(self.ok_counter, self.REQUIRED_FRAMES)}/{self.REQUIRED_FRAMES})"
-        cv2.putText(display, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
+        cv2.putText(
+            display,
+            text,
+            (20, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            color,
+            2,
+        )
 
         return av.VideoFrame.from_ndarray(display, format="bgr24")
 
-# 完了時の表示
+
+# ---------------------------------------------------------
+# メイン画面処理
+# ---------------------------------------------------------
 step_num = tutor.get_current_step_number()
 
-# Step 5 に到達した場合（完成）
 if step_num == 5:
-    st.balloons()  # 紙吹雪・風船演出
+    st.balloons()
     st.success("🎉 finished！")
 
     col1, col2 = st.columns([1, 1])
-
     with col1:
-        # Step 5 のお手本画像を表示
         current_step_data = tutor.get_current_step()
         image_path = current_step_data.get("image")
         if image_path:
@@ -139,13 +148,12 @@ if step_num == 5:
 
     with col2:
         st.write("### Good job！")
-#        st.write("Did you enjoy it？")
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
             if st.button("Back(STEP4)", use_container_width=True):
-                tutor.current_step = 3  # Step 4 (インデックス 3) に戻す
+                tutor.current_step = 3
                 tutor.finished = False
                 st.rerun()
 
@@ -154,11 +162,10 @@ if step_num == 5:
                 st.session_state.tutor = OrigamiTutor(STEPS)
                 st.rerun()
 else:
-    # 500ミリ秒（0.5秒）ごとにメインスレッドの状態をミリ秒単位で確認
-    st_autorefresh(interval=500, key="origami_step_checker")
+    # リフレッシュ間隔を1000ms (1秒) に広げて全体再描画の負荷を軽減
+    st_autorefresh(interval=1000, key="origami_step_checker")
 
     current_step_data = tutor.get_current_step()
-    step_num = tutor.get_current_step_number()
     instruction = current_step_data["instruction"]
     total_steps = len(STEPS)
 
@@ -167,9 +174,6 @@ else:
 
     col1, col2 = st.columns([1, 1])
 
-    # ---------------------------------------------------------
-    # 左カラム: カメラ入力
-    # ---------------------------------------------------------
     with col1:
         ctx = webrtc_streamer(
             key="origami-cam",
@@ -177,9 +181,10 @@ else:
             video_processor_factory=OrigamiProcessor,
             media_stream_constraints={
                 "video": {
-                    "width": {"ideal": 1280},
-                    "height": {"ideal": 720},
-                    "aspectRatio": {"ideal": 16 / 9},
+                    # 解像度を 640x480 に落としてメモリと通信量を大幅削減
+                    "width": {"ideal": 640},
+                    "height": {"ideal": 480},
+                    "frameRate": {"ideal": 15},  # FPSを抑えるのも効果的
                 },
                 "audio": False,
             },
@@ -188,27 +193,25 @@ else:
 
         if ctx.video_processor:
             ctx.video_processor.step_num = step_num
-            # 規定フレーム数連続でOKフラグが立った場合
             if ctx.video_processor.is_ok:
-                ctx.video_processor.reset_counter()  # カウンターとOKフラグを初期化
+                ctx.video_processor.reset_counter()
                 tutor.next_step()
                 st.rerun()
 
-    # ---------------------------------------------------------
-    # 右カラム: 手動コントロール
-    # ---------------------------------------------------------
     with col2:
         image_path = current_step_data.get("image")
-        
         if image_path:
-            st.image(image_path, caption=f"Example for Step {step_num} ", use_container_width=True)
+            st.image(
+                image_path,
+                caption=f"Example for Step {step_num} ",
+                use_container_width=True,
+            )
         else:
             st.info("No image")
 
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
-        
         with btn_col1:
             if st.button("Back", use_container_width=True):
                 if tutor.current_step > 0:
