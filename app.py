@@ -218,8 +218,10 @@ else:
             )
         else:
             st.info("No image")
-        st.write("Once finished, move your hands out of the frame to show the full origami.")
-
+        st.markdown(
+            "<p style='text-align: center;'>Once finished, move your hands out of the frame to show the full origami.</p>",
+            unsafe_allow_html=True
+        )
         st.divider()
 
         btn_col1, btn_col2 = st.columns(2)
