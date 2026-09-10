@@ -215,7 +215,7 @@ else:
             label_color = "#0c5460"
         else:
             label_text = "Notice :"
-            msg_text = "How to fold an origami heart: Press the "START" button below to turn on the camera!"
+            msg_text = "How to fold an origami heart: Press the START button below to turn on the camera!"
         
             bg_color = "#fff3cd"  # 黄色系の注意喚起カラー
             border_color = "#ffc107"
@@ -256,7 +256,18 @@ else:
         else:
             st.info("No image")
         st.markdown(
-            "<p style='text-align: center;'>Once finished, move your hands out of the frame to show the full origami.</p>",
+            f"""
+            <div style="
+                background-color: #e8f4f8; 
+                padding: 16px 20px; 
+                border-radius: 8px; 
+                border-left: 6px solid #29b6f6; 
+                margin-bottom: 20px;
+            ">
+                <span style="font-size: 22px; font-weight: bold; color: #0c5460;">instructions : </span>
+                <span style="font-size: 24px; font-weight: 600; color: #111111;">{instruction}</span>
+            </div>
+            """,
             unsafe_allow_html=True
         )
         st.divider()
