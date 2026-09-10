@@ -215,7 +215,8 @@ else:
             label_color = "#0c5460"
         else:
             label_text = "Notice :"
-            msg_text = "📷 下の「START」ボタンを押してカメラを起動し、折り紙を開始しましょう！"
+            msg_text = "How to fold an origami heart: Press the "START" button below to turn on the camera!"
+        
             bg_color = "#fff3cd"  # 黄色系の注意喚起カラー
             border_color = "#ffc107"
             label_color = "#856404"
