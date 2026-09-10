@@ -21,7 +21,7 @@ if "tutor" not in st.session_state:
 
 tutor = st.session_state.tutor
 
-st.title("Origami tutor：how to make a heart")
+#st.title("Origami tutor：how to make a heart")
 
 
 # ---------------------------------------------------------
