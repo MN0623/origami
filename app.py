@@ -221,23 +221,22 @@ else:
             border_color = "#ffc107"
             label_color = "#856404"
 
-        # プレースホルダーに表示をセット
+# プレースホルダーに表示をセット
         instruction_placeholder.markdown(
             f"""
             <div style="
                 background-color: {bg_color}; 
-                padding: 12px 16px; 
-                border-radius: 6px; 
-                border-left: 5px solid {border_color}; 
-                margin-bottom: 16px;
+                padding: 16px 20px; 
+                border-radius: 8px; 
+                border-left: 6px solid {border_color}; 
+                margin-bottom: 20px;
             ">
-                <span style="font-size: 16px; font-weight: bold; color: {label_color};">{label_text} </span>
-                <span style="font-size: 18px; font-weight: 500; color: #111111;">{msg_text}</span>
+                <span style="font-size: 22px; font-weight: bold; color: {label_color};">{label_text} </span>
+                <span style="font-size: 24px; font-weight: 600; color: #111111;">{msg_text}</span>
             </div>
             """,
             unsafe_allow_html=True
         )
-
         if ctx.video_processor:
             ctx.video_processor.step_num = step_num
             if ctx.video_processor.is_ok:
